@@ -10,6 +10,10 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma  # Update import to use new langchain_chroma package
 from datetime import datetime, timedelta
+from embeddings_preparer import prepare_embeddings
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers import EnsembleRetriever
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -96,20 +100,27 @@ def book_appointment(user_id, appointment_time):
     cursor.close()
     
 # Load the persisted vector store
-embeddings = OpenAIEmbeddings()
-docsearch = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+directory = "C:/Users/user/Downloads/OPEN AI CHATBOT/data"
+ensemble_retriever = prepare_embeddings(directory)
+if ensemble_retriever:
+    print("Ensemble retriever successfully created.")
+else:
+    print("Error creating ensemble retriever.")
+
+
 
 # Create the ChatOpenAI instance with the API key
 llm = ChatOpenAI(model="gpt-4o-mini-2024-07-18", openai_api_key=os.getenv("OPENAI_API_KEY"))
 
 from langchain.chains import ConversationalRetrievalChain
 
-# Create the ConversationalRetrievalChain
+# Create the ConversationalRetrievalChain with the EnsembleRetriever
 chain = ConversationalRetrievalChain.from_llm(
     llm=llm,
-    retriever=docsearch.as_retriever(search_kwargs={"k": 1}),
-    return_source_documents=True  # Ensure source documents are returned
+    retriever=ensemble_retriever,
+    return_source_documents=True
 )
+
 
 
 # Prompts to guide the behavior of the assistant
