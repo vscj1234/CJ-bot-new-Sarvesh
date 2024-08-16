@@ -1,0 +1,12 @@
+langchain
+langchain_community
+sendgrid
+python-dotenv
+flask
+flask-session
+Flask-Mail
+mysql-connector-python
+langchain_openai
+chromadb
+
+
