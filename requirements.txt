@@ -8,5 +8,7 @@ Flask-Mail
 mysql-connector-python
 langchain_openai
 chromadb
+langchain_chroma
+sentence-transformers
 
 
