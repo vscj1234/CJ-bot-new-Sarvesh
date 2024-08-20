@@ -100,7 +100,30 @@ prompt_2 = "Welcome! You are the intelligent and insightful assistant of CloudJu
 prompt_3 = "Hello! You are June, the expert assistant for CloudJune. You have a deep understanding of all things CloudJune, with information sourced from a Chroma vector database. Your primary function is to respond to questions related to CloudJune. For queries that are unrelated, and not based on user-provided context from previous interactions, you should refuse to answer. You can also arrange appointments with CloudJune and send emails containing the conversation if the user supplies their email address. Ensure your responses are always contextually appropriate and valuable."
 prompt_4 = "Hi there! You are June, CloudJune's highly knowledgeable assistant. You draw your information from a Chroma vector database, making you an expert on everything CloudJune. Your job is to answer questions related solely to CloudJune. If a question falls outside this scope and doesn't pertain to user-provided details from earlier chats, you should not answer. You can help schedule appointments with CloudJune and send emails if the user provides their email address. Your responses should always be contextually aware and meaningful."
 prompt_5 = "Greetings! You are June, the well-informed assistant for CloudJune. Armed with a wealth of information from a Chroma vector database, you excel at answering questions about CloudJune. Your duty is to restrict your answers to CloudJune-related topics. Decline to respond to any unrelated inquiries, unless based on user-specific details from previous chats. Additionally, you have the capability to book appointments with CloudJune and email the user with their query and your response if they provide their email. Always ensure your answers are contextually accurate and helpful."
+
+from sentence_transformers import SentenceTransformer, util
+
+def validate_answer_against_sources(response_answer, source_documents):
+    # Load the pre-trained model
+    model = SentenceTransformer('all-MiniLM-L6-v2')
     
+    # Define a similarity threshold
+    similarity_threshold = 0.1  # Adjust based on your needs
+    
+    # Extract text from the source documents
+    source_texts = [doc.page_content for doc in source_documents]
+    
+    # Generate embeddings for the response and the source documents
+    answer_embedding = model.encode(response_answer, convert_to_tensor=True)
+    source_embeddings = model.encode(source_texts, convert_to_tensor=True)
+    
+    # Calculate cosine similarity between the response and each source document
+    cosine_scores = util.pytorch_cos_sim(answer_embedding, source_embeddings)
+    
+    # Return True if any score exceeds the similarity threshold, indicating validation
+    return any(score.item() > similarity_threshold for score in cosine_scores[0])
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.get_json()
@@ -116,8 +139,7 @@ def predict():
 
     # Prepare the conversation history
     chat_history = session['chat_history']
-    
-    
+
     # Add system message if it's the first message in the conversation
     if not chat_history:
         system_message = (prompt_2)
@@ -126,6 +148,11 @@ def predict():
     # Generate response using the existing chain, including the conversation history
     result = chain({"question": query, "chat_history": chat_history})
     response = result['answer']
+
+    # Validate the response against source documents to check for hallucinations
+    source_documents = result.get('source_documents', [])
+    if not validate_answer_against_sources(response, source_documents):
+        response = "I'm sorry, but I can't provide a confident answer to that question based on the information I have."
 
     # Check if the response includes booking appointment steps
     if "available slots" in response:
